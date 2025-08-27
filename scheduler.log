@@ -1,0 +1,20 @@
+2025-08-19 12:07:37,205 - INFO - Scheduler started - Will run every Monday at 01:00
+2025-08-19 12:07:37,206 - INFO - Starting weekly data pipeline
+2025-08-19 12:07:37,206 - INFO - Starting crawler...
+2025-08-19 12:07:37,206 - ERROR - Error in pipeline: crawl_pureportal() missing 2 required positional arguments: 'driver' and 'start_url'
+Traceback (most recent call last):
+  File "/home/kusum/Documents/pylearn/assign/schedular.py", line 25, in run_pipeline
+    crawl_pureportal()
+    ~~~~~~~~~~~~~~~~^^
+TypeError: crawl_pureportal() missing 2 required positional arguments: 'driver' and 'start_url'
+2025-08-19 12:10:51,769 - INFO - Scheduler started - Will run every Monday at 01:00
+2025-08-19 12:10:51,769 - INFO - Starting weekly data pipeline
+2025-08-19 12:10:51,769 - INFO - Starting crawler...
+2025-08-19 12:10:51,769 - INFO - ====== WebDriver manager ======
+2025-08-19 12:10:51,860 - INFO - Get LATEST geckodriver version for 141.0 firefox
+2025-08-19 12:10:52,691 - INFO - Get LATEST geckodriver version for 141.0 firefox
+2025-08-19 12:10:52,966 - INFO - Driver [/home/kusum/.wdm/drivers/geckodriver/linux64/v0.36.0/geckodriver] found in cache
+2025-08-19 12:15:19,841 - INFO - Crawler completed successfully
+2025-08-19 12:15:19,841 - INFO - Starting indexer...
+2025-08-19 12:15:19,870 - INFO - Indexer completed successfully
+2025-08-19 12:15:19,871 - INFO - Pipeline completed successfully
