@@ -21,7 +21,7 @@ import json
 COVENTRY_PUREPORTAL_URL = "https://pureportal.coventry.ac.uk/en/organisations/fbl-school-of-economics-finance-and-accounting/publications"
 BASE_URL = "https://pureportal.coventry.ac.uk"
 USER_AGENT = "MyCoventryUniversityAcademicCrawler/1.0"
-POLITE_DELAY = 5   # polite delay between requests
+POLITE_DELAY = 4   # polite delay between requests
 
 # --- Driver Setup (Modified for Firefox) ---
 def setup_driver():
