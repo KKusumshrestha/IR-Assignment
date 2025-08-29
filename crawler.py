@@ -1,7 +1,6 @@
 # crawler.py
 
 import time
-import re
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,17 +10,18 @@ from selenium.common.exceptions import TimeoutException, WebDriverException, NoS
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from urllib.parse import urljoin
-import nltk
-from selenium.webdriver.firefox.service import Service as FirefoxService
+from urllib import robotparser
+import urllib.request
+from seleanium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from webdriver_manager.firefox import GeckoDriverManager
 import json
 
-# --- Configuration ---
+# --- Configuration ---the parliament approved tax reforms
 COVENTRY_PUREPORTAL_URL = "https://pureportal.coventry.ac.uk/en/organisations/fbl-school-of-economics-finance-and-accounting/publications"
 BASE_URL = "https://pureportal.coventry.ac.uk"
-USER_AGENT = "MyCoventryUniversityAcademicCrawler/1.0"
-POLITE_DELAY = 4   # polite delay between requests
+CRAWLER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+BASE_DELAY = 2
 
 # --- Driver Setup (Modified for Firefox) ---
 def setup_driver():
@@ -32,7 +32,7 @@ def setup_driver():
     # firefox_options.add_argument("--headless")
     firefox_options.add_argument("--disable-gpu")
     firefox_options.add_argument("--no-sandbox")
-    firefox_options.add_argument(f"user-agent={USER_AGENT}")
+    firefox_options.add_argument(f"user-agent={CRAWLER_USER_AGENT}")
 
     try:
         service = FirefoxService(GeckoDriverManager().install())
@@ -75,8 +75,11 @@ def fetch_abstract(soup):
     return '' # Return empty string if abstract is not found
 
 # --- Scrape details from a single publication page ---
-def scrape_publication_details(driver, url, title_from_list):
-    """Scrapes authors and abstract from a single publication page."""
+def scrape_publication_details(driver, url, title_from_list, robot_parser):
+    if not robot_parser.can_fetch(CRAWLER_USER_AGENT, url):
+        print(f"Skipping disallowed URL: {url}")
+        return title_from_list, [], 'N/A', ''
+    
     try:
         driver.get(url)
         WebDriverWait(driver, 10).until(
@@ -108,10 +111,11 @@ def scrape_publication_details(driver, url, title_from_list):
         return title_from_list, [], 'N/A', ''
 
 # --- Crawler Core ---
-def crawl_pureportal(driver, start_url):
-    """
-    Crawls the Pureportal page, fetches publication links and titles, and then scrapes details.
-    """
+def crawl_pureportal(driver, start_url, robot_parser, crawl_delay):
+    if not robot_parser.can_fetch(CRAWLER_USER_AGENT, start_url):
+        print(f"Cannot access start URL according to robots.txt: {start_url}")
+        return []
+    
     print(f"Starting crawl from: {start_url}")
     publications_data = []
     try:
@@ -124,7 +128,7 @@ def crawl_pureportal(driver, start_url):
         
         # Step 1: Collect publication links and titles
         while True:
-            print(f"Collecting links from current page...")
+            print("Collecting links from current page...")
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             
             publication_elements = soup.find_all('li', class_='list-result-item')
@@ -133,20 +137,26 @@ def crawl_pureportal(driver, start_url):
                 break
 
             for pub_elem in publication_elements:
-                title_tag = pub_elem.find('a', class_='link')
-                if title_tag and title_tag.get('href'):
-                    pub_title = title_tag.get_text(strip=True)
-                    pub_link = urljoin(BASE_URL, title_tag['href'])
-                    publication_details_list.append({'title': pub_title, 'link': pub_link})
+                if isinstance(pub_elem, Tag):
+                    title_tag = pub_elem.find('a', class_='link')
+                    if title_tag and isinstance(title_tag, Tag) and title_tag.get('href'):
+                        pub_title = title_tag.get_text(strip=True)
+                        pub_link = urljoin(BASE_URL, str(title_tag['href']))
+                        publication_details_list.append({'title': pub_title, 'link': pub_link})
 
             
             try:
                 next_page = soup.find('a', class_='nextLink')
                 if isinstance(next_page, Tag) and 'href' in next_page.attrs:
-                    print("Moving to next page...")
                     next_page_link = urljoin(BASE_URL, str(next_page['href']))
+                    
+                    if not robot_parser.can_fetch(CRAWLER_USER_AGENT, next_page_link):
+                        print(f"Next page URL disallowed by robots.txt: {next_page_link}")
+                        break
+                    
+                    print("Moving to next page...")
                     print(f"Next url: {next_page_link}")
-                    time.sleep(POLITE_DELAY)
+                    time.sleep(crawl_delay)
                     driver.get(next_page_link)
                     WebDriverWait(driver, 20).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, 'ul.list-results'))
@@ -166,7 +176,7 @@ def crawl_pureportal(driver, start_url):
             title = pub_info['title']
             print(f"Scraping details for publication {i+1}/{len(publication_details_list)}: {link}")
             
-            title_final, authors, date, abstract = scrape_publication_details(driver, link, title)
+            title_final, authors, date, abstract = scrape_publication_details(driver, link, title, robot_parser)
             
             publications_data.append({
                 'id': i,  # Assigning a simple ID
@@ -177,7 +187,7 @@ def crawl_pureportal(driver, start_url):
                 'publication_link': link
             })
             
-            time.sleep(POLITE_DELAY)
+            time.sleep(crawl_delay)
         
         return publications_data
 
@@ -196,8 +206,36 @@ if __name__ == "__main__":
     driver = setup_driver()
     if driver is None:
         exit()
+    
+    robot_parser = robotparser.RobotFileParser()
+    robots_url = urljoin(BASE_URL, 'robots.txt')
+    print(f"Fetching robots.txt from: {robots_url}")
+    
+    try:
+        req = urllib.request.Request(robots_url, headers={'User-Agent': CRAWLER_USER_AGENT})
+        with urllib.request.urlopen(req) as response:
+            robots_content = response.read().decode('utf-8')
         
-    publications_data = crawl_pureportal(driver, COVENTRY_PUREPORTAL_URL)
+        print("\n--- Robots.txt content ---")
+        print(robots_content)
+        print("-------------------------\n")
+        
+        robot_parser.parse(robots_content.splitlines())
+        print("robots.txt parsed successfully.")
+    except Exception as e:
+        print(f"Warning: Could not fetch or parse robots.txt. Proceeding with default settings. Error: {e}")
+    
+    robots_crawl_delay = robot_parser.crawl_delay(CRAWLER_USER_AGENT)
+    robots_delay_value = int(robots_crawl_delay) if robots_crawl_delay else None
+    
+    if robots_delay_value and robots_delay_value > BASE_DELAY:
+        final_delay = robots_delay_value
+        print(f"Using Crawl-Delay from robots.txt: {final_delay} seconds.")
+    else:
+        final_delay = BASE_DELAY
+        print(f"Using configured minimum delay: {final_delay} seconds.")
+        
+    publications_data = crawl_pureportal(driver, COVENTRY_PUREPORTAL_URL, robot_parser, final_delay)
 
     print("\n--- Crawling Complete. Total Publications Found: ---")
     print(len(publications_data))
@@ -210,4 +248,5 @@ if __name__ == "__main__":
     # --- Save to JSON ---
     with open("coventry_publications.json", "w", encoding="utf-8") as f:
         json.dump(publications_data, f, ensure_ascii=False, indent=4)
+    print("Publications saved to coventry_publications.json")
     print("Publications saved to coventry_publications.json")

@@ -1,5 +1,3 @@
-# ranker.py
-
 import numpy as np
 import pickle
 import os
@@ -24,21 +22,32 @@ def load_index(filename_prefix="index"):
 
 def search_publications_tfidf(query, vectorizer, tfidf_matrix, publications):
     """
-    Searches publications using TF-IDF similarity.
-    Returns top_n most relevant documents.
+    Searches publications using TF-IDF and cosine similarity,
+    but boosts results where the query appears in the title.
     """
     query_vec = vectorizer.transform([query])
     cosine_similarities = (tfidf_matrix @ query_vec.T).toarray().ravel()
-    top_indices = np.argsort(cosine_similarities)[::-1]
     
     results = []
-    for idx in top_indices:
-        if cosine_similarities[idx] > 0:
-            pub = publications[idx]
+    query_lower = query.lower()
+
+    for idx, pub in enumerate(publications):
+        score = cosine_similarities[idx]
+        if score > 0:
+            title = pub['title'].lower()
+
+            if query_lower in title:
+                score += 2.0  
+
+            elif any(word in title for word in query_lower.split()):
+                score += 1.0  
+
             pub_copy = pub.copy()
-            pub_copy["score"] = round(float(cosine_similarities[idx]), 4)
+            pub_copy["score"] = round(float(score), 4)
             results.append(pub_copy)
-            
+    
+    # Sort by boosted score
+    results = sorted(results, key=lambda x: x["score"], reverse=True)
     return results
 
 def main():

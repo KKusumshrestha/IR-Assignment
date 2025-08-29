@@ -9,7 +9,7 @@ def load_data(csv_file):
     """Loads publication data from a CSV file."""
     try:
         df = pd.read_csv(csv_file)
-        # Use json.loads to parse the string into a list of dictionaries
+        #json.loads to parse the string into a list of dictionaries
         df['authors'] = df['authors'].apply(
             lambda x: json.loads(x) if pd.notna(x) and isinstance(x, str) else []
         )
@@ -20,7 +20,6 @@ def load_data(csv_file):
         return None
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON in 'authors' column: {e}")
-        # Return a copy of the dataframe to allow for inspection of bad rows
         return df.copy()
 
 def build_tfidf_index(publications):
@@ -30,7 +29,7 @@ def build_tfidf_index(publications):
     if not publications:
         return None, None, None
         
-    # Combine useful fields into one text per publication
+    # Combine fields into one text per publication
     docs = []
     for pub in publications:
         authors_text = ' '.join([a['name'] for a in pub['authors']])
@@ -54,7 +53,7 @@ def save_index(vectorizer, tfidf_matrix, publications, filename_prefix="index"):
     with open(f"{filename_prefix}_matrix.pkl", "wb") as f:
         pickle.dump(tfidf_matrix, f)
 
-    # Save publications list for easy loading later
+    # Save publications list 
     with open(f"{filename_prefix}_publications.pkl", "wb") as f:
         pickle.dump(publications, f)
 
@@ -69,7 +68,7 @@ def main():
     print("Building TF-IDF index...")
     vectorizer, tfidf_matrix, publications_list = build_tfidf_index(publications)
     
-    # Corrected if condition to handle the sparse matrix
+    # condition to handle sparse matrix
     if vectorizer and tfidf_matrix.shape[0] > 0:
         save_index(vectorizer, tfidf_matrix, publications_list)
         print("Indexing complete.")

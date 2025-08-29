@@ -85,7 +85,7 @@
         </div>
         <form method="POST">
             <div class="mb-3">
-                <input type="text" name="headline" class="form-control form-control-lg" placeholder="Enter the text to classify" value="{{ user_input }}" required>
+                <textarea name="headline" class="form-control form-control-lg" rows="4" placeholder="Enter the text to classify" required>{{ user_input }}</textarea>
             </div>
             <div class="d-grid">
                 <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-lightning-charge"></i> Classify</button>

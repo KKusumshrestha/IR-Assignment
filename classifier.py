@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request
 import math
 
 # --- Imports for Task 1 (Search) ---
@@ -6,21 +6,21 @@ from ranker import load_index, search_publications_tfidf
 
 # --- Imports for Task 2 (News Classifier) ---
 import pandas as pd
+import numpy as np
 import re
 import nltk
-import numpy as np
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import accuracy_score, f1_score, classification_report, confusion_matrix
+import warnings
 
 # --- Setup ---
-import warnings
 warnings.filterwarnings('ignore')
 # nltk.download('punkt')
 # nltk.download('stopwords')
@@ -28,7 +28,9 @@ warnings.filterwarnings('ignore')
 
 app = Flask(__name__, template_folder='templates')
 
-# --- Task 1: Search Interface ---
+# ----------------------------
+# Task 1: Search Interface
+# ----------------------------
 vectorizer, tfidf_matrix, publications = load_index()
 
 @app.route("/", methods=["GET", "POST"])
@@ -53,16 +55,15 @@ def home():
         total_results=total_results
     )
 
-# --- Task 2: Text Classifier Interface ---
+# ----------------------------
+# Task 2: Text Classifier
+# ----------------------------
 class DocumentClassifier:
     def __init__(self):
         self.pipeline = Pipeline([
             ('tfidf', TfidfVectorizer(sublinear_tf=True)),
             ('select', SelectKBest(chi2)),
-            ('clf', CalibratedClassifierCV(
-                LinearSVC(class_weight='balanced', max_iter=10000, dual=False),
-                cv=3
-            ))
+            ('clf', MultinomialNB())
         ])
         self.best_estimator_ = None
         self.lemmatizer = WordNetLemmatizer()
@@ -89,7 +90,7 @@ class DocumentClassifier:
                 'tfidf__ngram_range': [(1, 1), (1, 2)],
                 'tfidf__max_df': [0.85, 0.95],
                 'select__k': [3000, 5000, 'all'],
-                'clf__estimator__C': [0.1, 1, 10]
+                'clf__alpha': [0.1, 0.5, 1.0]
             }
             cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
             grid = GridSearchCV(self.pipeline, param_grid, scoring='f1_macro', cv=cv, n_jobs=-1)
@@ -107,39 +108,14 @@ class DocumentClassifier:
         idx = np.argmax(probs)
         return self.best_estimator_.classes_[idx], probs[idx]
 
-# Load and train classifier once
+# Instantiate and train classifier
 classifier = DocumentClassifier()
 df = classifier.load_data('news_300_dataset.csv')
 X_train, X_test, y_train, y_test = train_test_split(
-    df['processed_text'], df['category'], test_size=0.2, random_state=42, stratify=df['category']
+    df['processed_text'], df['category'], test_size=0.2,
+    random_state=42, stratify=df['category']
 )
 classifier.train(X_train, y_train, tune=True)
-
-# Print and plot confusion matrix and classification report for test set
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-y_pred = [classifier.predict(text)[0] for text in X_test]
-acc = accuracy_score(y_test, y_pred)
-f1 = f1_score(y_test, y_pred, average='macro')
-print(f"Model trained.\nOverall Test Accuracy: {acc:.4f},\nMacro F1 Score: {f1:.4f}")
-
-print("\nClassification Report (Test Set):")
-print(classification_report(y_test, y_pred))
-print("Confusion Matrix (Test Set):")
-cm_test = confusion_matrix(y_test, y_pred)
-print(cm_test)
-
-plt.figure(figsize=(8, 6))
-sns.heatmap(cm_test, annot=True, fmt='d', cmap='Greens',
-            xticklabels=classifier.best_estimator_.classes_,
-            yticklabels=classifier.best_estimator_.classes_)
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-plt.title('Confusion Matrix (Test Set)')
-plt.tight_layout()
-plt.show()
 
 history = []
 
@@ -155,8 +131,36 @@ def task2():
             result, confidence = classifier.predict(user_input)
             confidence = round(confidence * 100, 2)
             history.append((user_input, result, confidence))
-            history = history[-5:]  # keep only last 5
-    return render_template("news_index.html", result=result, confidence=confidence, user_input=user_input, history=history)
+            history = history[-5:]
+    return render_template(
+        "news_index.html",
+        result=result,
+        confidence=confidence,
+        user_input=user_input,
+        history=history
+    )
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Evaluate model before starting server
+    y_pred = [classifier.predict(text)[0] for text in X_test]
+    acc = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred, average='macro')
+    print(f"Model trained.\nOverall Test Accuracy: {acc:.4f},\nMacro F1 Score: {f1:.4f}")
+    print("\nClassification Report (Test Set):")
+    print(classification_report(y_test, y_pred))
+    print("Confusion Matrix (Test Set):")
+    cm_test = confusion_matrix(y_test, y_pred)
+    print(cm_test)
+
+# plt.figure(figsize=(8, 6))
+# sns.heatmap(cm_test, annot=True, fmt='d', cmap='Greens',
+#             xticklabels=classifier.best_estimator_.classes_,
+#             yticklabels=classifier.best_estimator_.classes_)
+# plt.xlabel('Predicted')
+# plt.ylabel('Actual')
+# plt.title('Confusion Matrix (Test Set)')
+# plt.tight_layout()
+# plt.show()
+
+    app.run(debug=True, use_reloader=False)
