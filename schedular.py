@@ -43,8 +43,8 @@ def run_pipeline():
         logging.error(f"Error in pipeline: {str(e)}", exc_info=True)
 
 def main():
-    # Schedule the job to run every Monday at 1:00 AM
-    schedule.every().monday.at("01:00").do(run_pipeline)
+    # Schedule the job to run every Monday at 12:00 AM
+    schedule.every().monday.at("12:00").do(run_pipeline)
     
     logging.info("Scheduler started - Will run every Monday at 01:00")
     

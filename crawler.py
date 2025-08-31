@@ -12,7 +12,7 @@ from bs4.element import Tag
 from urllib.parse import urljoin
 from urllib import robotparser
 import urllib.request
-from seleanium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from webdriver_manager.firefox import GeckoDriverManager
 import json
